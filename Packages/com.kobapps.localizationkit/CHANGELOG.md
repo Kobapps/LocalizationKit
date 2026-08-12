@@ -6,6 +6,29 @@ All notable changes to LocalizationKit are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-13
+
+### Fixed
+- **The bundled sample could not be imported.** `package.json` declared the sample path as
+  `Samples/LocalizationShowcase`; Unity resolves that path literally against the package root and
+  does not map `Samples` to `Samples~`, so the Package Manager reported
+  *"the path … does not exist"*. Now `Samples~/LocalizationShowcase`, matching every first-party
+  Unity package.
+- Importing the sample then surfaced three faults in code that had never been compiled, because
+  `Samples~` is excluded from compilation by design:
+  - `LocalizationKit.Samples.Editor` did not reference `LocalizationKit.uGUI`, so `LocalizedText`
+    was unresolvable.
+  - The generated scene used `StandaloneInputModule`, which throws under *Active Input Handling ▸
+    Input System Package (New)* — the sample's language button did nothing. The module is now
+    resolved by name, so the scene works under the old, new or both back-ends without making the
+    Input System a dependency of the sample.
+  - The sample's own button label was hard-coded English. It is localized now.
+
+### Changed
+- The source generator no longer ships `.deps.json` or debug symbols alongside its DLL. Neither
+  means anything to a Roslyn analyzer, but Unity imported the `.deps.json` as a `TextAsset` in
+  every consuming project.
+
 ## [1.0.0] - 2026-08-13
 
 First release.

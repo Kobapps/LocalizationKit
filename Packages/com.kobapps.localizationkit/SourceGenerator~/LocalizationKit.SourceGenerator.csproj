@@ -13,6 +13,11 @@
     <OutputPath>$(MSBuildThisFileDirectory)..\Runtime\Plugins\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <!-- Only the DLL belongs in Plugins/. A .deps.json is for the .NET host's dependency
+         resolution and means nothing to a Roslyn analyzer, but Unity would import it as a
+         TextAsset in every consuming project; debug symbols are likewise dead weight there. -->
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <DebugType>none</DebugType>
     <!-- RS2008 wants an AnalyzerReleases file to track rule ids across versions. That is for
          analyzer packages shipped on NuGet with a documented rule history; this generator ships
          inside a Unity package and its ids are documented in the README. -->

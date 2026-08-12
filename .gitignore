@@ -110,9 +110,14 @@ InitTestScene*.unity*
 /*.sln
 /*.user
 
-# Samples imported into this dev project for testing. The source of truth is
-# Packages/com.kobapps.localizationkit/Samples~/ — committing the imported copy would
-# duplicate every file and invite edits to the copy that never reach the package.
+# Package Manager sample imports. This exact tree is owned by the Package Manager
+# (Assets/Samples/<package>/<version>/<sample>) and is a verbatim copy of
+# Packages/com.kobapps.localizationkit/Samples~/, so committing it would duplicate every file
+# and invite edits to the copy that never reach the package.
+#
+# Only this path is ignored. Anything a tool GENERATES — the showcase catalog and scene — goes
+# to Assets/LocalizationShowcase/ and is tracked, because content that is invisible to git is
+# content nobody can tell they are about to lose.
 /[Aa]ssets/[Ss]amples/
 
 # Source generator build artifacts. The generator's compiled DLL under

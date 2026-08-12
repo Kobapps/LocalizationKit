@@ -1,6 +1,6 @@
 {
   "name": "com.kobapps.localizationkit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "LocalizationKit",
   "description": "Localization for Unity with source-generated bindings. Mark a string field with [Localized(\"key\")] and it is filled in and kept in step with the active language automatically; mark one with [LocalizationKey] to get a searchable key picker in the inspector. Keys are organised into categories (Default, Popups, Store, Tutorials, …) inside a catalog asset edited from a full editor window. Drop LocalizedText / LocalizedTMPText on a GameObject to localize UI without writing code. Built for zero per-frame cost: keys resolve once, a language switch swaps a single array reference, and reads never allocate. Local catalogs today, with a source interface and CSV import ready for Google Sheets and other remote providers.",
   "unity": "6000.0",

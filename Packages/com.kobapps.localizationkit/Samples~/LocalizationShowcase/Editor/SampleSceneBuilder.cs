@@ -19,7 +19,11 @@ namespace LocalizationKit.Samples.Editor
     /// </remarks>
     internal static class SampleSceneBuilder
     {
-        private const string Folder = "Assets/Samples/LocalizationKit";
+        // Deliberately NOT under Assets/Samples/. That tree belongs to the Package Manager, which
+        // owns Assets/Samples/<package>/<version>/<sample> and will overwrite or remove it on the
+        // next import. Generated output that a user may then edit must not live somewhere another
+        // tool treats as disposable.
+        private const string Folder = "Assets/LocalizationShowcase";
         private const string CatalogPath = Folder + "/ShowcaseCatalog.asset";
         private const string ScenePath = Folder + "/LocalizationShowcase.unity";
 
