@@ -104,3 +104,24 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Unity regenerates these on every project open; they are noise in review.
+/*.csproj
+/*.sln
+/*.user
+
+# Samples imported into this dev project for testing. The source of truth is
+# Packages/com.kobapps.localizationkit/Samples~/ — committing the imported copy would
+# duplicate every file and invite edits to the copy that never reach the package.
+/[Aa]ssets/[Ss]amples/
+
+# Source generator build artifacts. The generator's compiled DLL under
+# Runtime/Plugins/ IS committed — Unity consumes it as an analyzer and there is no
+# build step on a consumer's machine — but its intermediate output is not.
+/[Pp]ackages/com.kobapps.localizationkit/SourceGenerator~/obj/
+/[Pp]ackages/com.kobapps.localizationkit/SourceGenerator~/bin/
+
+# The generator's own .csproj is hand-written source, not one of the .csproj files Unity
+# regenerates — the blanket *.csproj rule above would otherwise silently drop the only file
+# that says how to rebuild the analyzer.
+!/[Pp]ackages/com.kobapps.localizationkit/SourceGenerator~/*.csproj

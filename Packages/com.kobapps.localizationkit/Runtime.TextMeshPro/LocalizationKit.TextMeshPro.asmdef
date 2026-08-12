@@ -1,0 +1,25 @@
+{
+    "name": "LocalizationKit.TextMeshPro",
+    "rootNamespace": "LocalizationKit",
+    "references": [
+        "LocalizationKit.Runtime",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LOCALIZATIONKIT_TMP"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.ugui",
+            "expression": "2.0.0",
+            "define": "LOCALIZATIONKIT_TMP"
+        }
+    ],
+    "noEngineReferences": false
+}

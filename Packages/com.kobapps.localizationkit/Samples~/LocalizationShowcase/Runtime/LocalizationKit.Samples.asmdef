@@ -1,0 +1,25 @@
+{
+    "name": "LocalizationKit.Samples",
+    "rootNamespace": "LocalizationKit.Samples",
+    "references": [
+        "LocalizationKit.Runtime",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LOCALIZATIONKIT_UGUI"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.ugui",
+            "expression": "1.0.0",
+            "define": "LOCALIZATIONKIT_UGUI"
+        }
+    ],
+    "noEngineReferences": false
+}

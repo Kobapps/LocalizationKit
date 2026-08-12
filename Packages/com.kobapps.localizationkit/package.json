@@ -1,0 +1,42 @@
+{
+  "name": "com.kobapps.localizationkit",
+  "version": "1.0.0",
+  "displayName": "LocalizationKit",
+  "description": "Localization for Unity with source-generated bindings. Mark a string field with [Localized(\"key\")] and it is filled in and kept in step with the active language automatically; mark one with [LocalizationKey] to get a searchable key picker in the inspector. Keys are organised into categories (Default, Popups, Store, Tutorials, …) inside a catalog asset edited from a full editor window. Drop LocalizedText / LocalizedTMPText on a GameObject to localize UI without writing code. Built for zero per-frame cost: keys resolve once, a language switch swaps a single array reference, and reads never allocate. Local catalogs today, with a source interface and CSV import ready for Google Sheets and other remote providers.",
+  "unity": "6000.0",
+  "license": "MIT",
+  "documentationUrl": "https://github.com/Kobapps/LocalizationKit#readme",
+  "changelogUrl": "https://github.com/Kobapps/LocalizationKit/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/Kobapps/LocalizationKit/blob/main/LICENSE.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kobapps/LocalizationKit.git"
+  },
+  "relatedPackages": {
+    "com.kobapps.editorcorekit": "2.0.0"
+  },
+  "keywords": [
+    "localization",
+    "l10n",
+    "i18n",
+    "internationalization",
+    "translation",
+    "language",
+    "text",
+    "textmeshpro",
+    "source-generator",
+    "csv",
+    "google-sheets"
+  ],
+  "author": {
+    "name": "Kobapps",
+    "url": "https://github.com/Kobapps"
+  },
+  "samples": [
+    {
+      "displayName": "Localization Showcase",
+      "description": "A catalog with four categories and three languages, a language switcher, attribute-bound scripts and localized uGUI/TMP components in a runtime scene. Includes a Tools menu item that builds the scene programmatically.",
+      "path": "Samples~/LocalizationShowcase"
+    }
+  ]
+}
