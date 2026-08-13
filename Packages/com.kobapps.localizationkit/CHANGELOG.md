@@ -6,6 +6,74 @@ All notable changes to LocalizationKit are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-13
+
+### Fixed
+- **Rows in the Keys list overlapped each other.** Each row stacked the key over a preview of its
+  text, and the preview wrapped — but a virtual list positions rows at a fixed height, so a row
+  that renders taller than that is drawn over the row beneath it rather than pushing it down. A
+  row is now a single line and every column clips with an ellipsis instead of wrapping.
+- **The translation area was cut off once a catalog had more than a few languages.** It had a
+  fixed 300px ceiling below a list that took everything else. The list and the translations are
+  now a draggable vertical split whose position is remembered, and the translations scroll inside
+  their own pane.
+- **Moving a key into a category that already had that key produced two entries with the same full
+  key**, the second of which could never be looked up. The move is refused now.
+- **Pressing Enter in the new-key dialog could add the key twice.** Choosing a category rebuilt the
+  dialog's contents, which re-registered the Enter handler on a root element that `Clear()` does
+  not strip callbacks from. Category changes update the controls in place instead.
+- Categories differing only in case — `Popups/Quit` beside `popups/Rate` — described one branch to
+  every lookup but were drawn and listed as two, including as two separate submenus. One spelling
+  now wins for the whole subtree.
+- **"New Category…" inside the new-key dialog opened an empty window.** It was a modal opened from
+  inside a modal, which Unity's window stack does not survive. The new name is typed inline in the
+  dialog's own category field now, with an × to go back to picking an existing one.
+
+### Added
+- **Subcategories.** A category is a path, so `Popups/Quit Level/Title` is the key `Title` in the
+  category `Popups/Quit Level`, nested as deep as you like. The runtime already split a full key at
+  its *last* separator — the editor was the only thing insisting a category be a single word.
+  - The sidebar draws the real tree and is managed like a file tree: right-click any row for
+    New Subcategory / Rename / Delete, right-click the empty space for New Category, double-click
+    a branch to fold it, and expand-all / collapse-all in the header. Creating or renaming a
+    category unfolds whatever it is nested inside, so it is on screen when the tree redraws.
+  - It shows the intermediate levels a catalog implies but does not store — a project with only
+    `Popups/Quit` and `Popups/Rate` gets a `Popups` group — with inherited counts.
+  - **Those base categories are selectable everywhere a category is picked**, so a new key can go
+    straight into `Popups` even when nothing has ever been filed there. `LocalizationEditorCatalog`
+    exposes the full set as `CategoryPaths`, parents before children.
+  - Selecting a branch shows **everything under it**, not just keys filed at that exact path. The
+    same is true of the inspector key picker's category filter.
+  - Every category dropdown nests to match. A category that is *also* a parent is listed as
+    `(this category)` inside its own submenu, because one menu path cannot be both a command and a
+    submenu.
+  - Renaming a branch rewrites the paths beneath it; deleting one takes its subcategories with it,
+    and says how many keys that is before it does.
+  - `LocalizationKeys.IsValidCategory` and `LocalizationKeys.IsUnder` are the rules, in the runtime
+    assembly next to `Compose`/`TrySplit`, and are covered by tests.
+- The Keys list is a table: **key on the left, the default language's text beside it**, coverage on
+  the right, under column headings that name the language being shown.
+- **Duplicate Key**, which copies a key with every translation and its note — the usual answer to a
+  second string that is nearly the first.
+- **Move between categories without a dialog**: a category dropdown in the selected key's pane, a
+  `Move to ▸` submenu on the overflow button, and a right-click menu on any row carrying rename,
+  duplicate, move, copy and delete.
+- The selected key's pane now **shows the key and its category as editable fields**, so a rename is
+  a rename in place rather than a trip through a dialog.
+- A **copy source** button beside any empty translation, which seeds it from the default language.
+- The sample catalog ships **55 keys across 13 categories** rather than six, three levels deep
+  (`Menu/Options/Audio`), with deliberate gaps and one very long string, so the manager opens onto
+  something that exercises scrolling, nesting, filtering and the coverage column.
+
+### Changed
+- Dialogs open **centred over the editor** instead of in the top-left corner of the display, are
+  resizable, and lay their fields out in aligned columns with a live preview of the full key.
+- The new-key dialog's category is a **nested dropdown** listing the whole tree, with
+  "New Category…" and "New Subcategory of …" at the bottom.
+- Names are **validated as they are typed**: a blank or clashing key disables OK and says why,
+  rather than closing the dialog and reporting the clash in a toast once the typing is gone.
+- Right-to-left languages are edited in a right-aligned field.
+
 ## [1.0.1] - 2026-08-13
 
 ### Fixed

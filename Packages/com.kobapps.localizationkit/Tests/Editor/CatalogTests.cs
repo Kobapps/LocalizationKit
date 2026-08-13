@@ -129,5 +129,86 @@ namespace LocalizationKit.Tests
 
             Assert.IsNotNull(m_Catalog.FindByFullKey("Popups/Quit/Title"));
         }
+
+        [Test]
+        public void FindByFullKey_HandlesDeeplyNestedCategories()
+        {
+            m_Catalog.AddEntry("Popups/Quit Level/Confirm", "Title");
+
+            Assert.IsNotNull(
+                m_Catalog.FindByFullKey("Popups/Quit Level/Confirm/Title"),
+                "A full key splits at its last separator, so nesting has no depth limit.");
+        }
+
+        [Test]
+        public void IsValidCategory_AcceptsNesting()
+        {
+            Assert.IsTrue(LocalizationKeys.IsValidCategory("Popups"));
+            Assert.IsTrue(LocalizationKeys.IsValidCategory("Popups/Quit Level"));
+            Assert.IsTrue(LocalizationKeys.IsValidCategory("A/B/C/D"));
+        }
+
+        [Test]
+        public void IsValidCategory_RejectsEmptySegments()
+        {
+            Assert.IsFalse(LocalizationKeys.IsValidCategory(null));
+            Assert.IsFalse(LocalizationKeys.IsValidCategory(string.Empty));
+            Assert.IsFalse(LocalizationKeys.IsValidCategory("   "));
+            Assert.IsFalse(LocalizationKeys.IsValidCategory("/Popups"));
+            Assert.IsFalse(LocalizationKeys.IsValidCategory("Popups/"));
+            Assert.IsFalse(LocalizationKeys.IsValidCategory("Popups//Quit"));
+            Assert.IsFalse(LocalizationKeys.IsValidCategory("Popups/ /Quit"));
+        }
+
+        [Test]
+        public void IsValidName_StillRejectsSeparators()
+        {
+            Assert.IsTrue(LocalizationKeys.IsValidName("Title"));
+            Assert.IsFalse(
+                LocalizationKeys.IsValidName("Quit/Title"),
+                "Categories nest; keys do not, or the split would land in the wrong place.");
+        }
+
+        [Test]
+        public void CategoryPaths_IncludeTheBaseCategoriesTheStoredOnesImply()
+        {
+            m_Catalog.AddEntry("Menu/Options/Audio", "Master");
+            m_Catalog.AddEntry("Menu/Options/Video", "Quality");
+
+            var paths = Editor.LocalizationEditorCatalog.CategoryPaths(m_Catalog);
+
+            CollectionAssert.AreEqual(
+                new[] { "Store", "Menu", "Menu/Options", "Menu/Options/Audio", "Menu/Options/Video" },
+                paths,
+                "Menu and Menu/Options hold no keys of their own, but a new key can still go in them, "
+                + "and a parent has to come before its children for a nested menu to read right.");
+        }
+
+        [Test]
+        public void CategoryPaths_ListEachPathOnce()
+        {
+            m_Catalog.AddEntry("Popups/Quit", "Title");
+            m_Catalog.AddEntry("Popups/Rate", "Title");
+            m_Catalog.AddEntry("Popups", "Shared");
+
+            var paths = Editor.LocalizationEditorCatalog.CategoryPaths(m_Catalog);
+
+            CollectionAssert.AreEqual(new[] { "Store", "Popups", "Popups/Quit", "Popups/Rate" }, paths);
+        }
+
+        [Test]
+        public void IsUnder_MatchesTheSubtreeAndNothingElse()
+        {
+            Assert.IsTrue(LocalizationKeys.IsUnder("Popups", "Popups"));
+            Assert.IsTrue(LocalizationKeys.IsUnder("Popups/Quit", "Popups"));
+            Assert.IsTrue(LocalizationKeys.IsUnder("Popups/Quit/Confirm", "Popups"));
+            Assert.IsTrue(LocalizationKeys.IsUnder("popups/quit", "Popups"), "Categories compare case-insensitively.");
+
+            Assert.IsFalse(LocalizationKeys.IsUnder("PopupsExtra", "Popups"), "A prefix is not a parent.");
+            Assert.IsFalse(LocalizationKeys.IsUnder("Store", "Popups"));
+            Assert.IsFalse(LocalizationKeys.IsUnder("Popups", "Popups/Quit"));
+
+            Assert.IsTrue(LocalizationKeys.IsUnder("Anything", null), "No filter means everything matches.");
+        }
     }
 }

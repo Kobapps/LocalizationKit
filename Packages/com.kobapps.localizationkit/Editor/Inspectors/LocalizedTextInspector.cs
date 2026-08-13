@@ -108,13 +108,18 @@ namespace LocalizationKit.Editor
 
                 LocalizationKeyDialog.Open(
                     "Create Key",
+                    "The text below becomes this key's default-language value.",
                     LocalizationKeys.DefaultCategory,
                     suggested,
                     CategoryNames(catalog),
+
+                    // Only the character check: unlike the manager's "New Key", naming a key that
+                    // already exists is a valid outcome here — it points this component at it.
+                    (_, key) => string.IsNullOrWhiteSpace(key) || LocalizationKeys.IsValidName(key)
+                        ? null
+                        : "A key cannot contain '/'.",
                     (category, key) =>
                     {
-                        if (!LocalizationKeys.IsValidName(key)) return;
-
                         var full = LocalizationKeys.Compose(category, key);
 
                         if (catalog.FindByFullKey(full) == null)
@@ -158,10 +163,12 @@ namespace LocalizationKit.Editor
             return builder.Length == 0 ? "NewKey" : builder.ToString();
         }
 
+        /// <summary>
+        /// Every category a key can go in — the stored ones and the base categories they imply.
+        /// </summary>
         private static System.Collections.Generic.List<string> CategoryNames(LocalizationCatalog catalog)
         {
-            var names = new System.Collections.Generic.List<string>(catalog.Categories.Count);
-            for (var i = 0; i < catalog.Categories.Count; i++) names.Add(catalog.Categories[i].Name);
+            var names = LocalizationEditorCatalog.CategoryPaths(catalog);
 
             if (names.Count == 0) names.Add(LocalizationKeys.DefaultCategory);
 

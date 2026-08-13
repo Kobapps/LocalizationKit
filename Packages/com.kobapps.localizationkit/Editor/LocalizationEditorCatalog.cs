@@ -105,7 +105,10 @@ namespace LocalizationKit.Editor
             return false;
         }
 
-        /// <summary>Keys within one category, or every key when the category is blank.</summary>
+        /// <summary>
+        /// Keys within one category and any category nested under it, or every key when the
+        /// category is blank.
+        /// </summary>
         public static List<string> KeysInCategory(string category)
         {
             var all = Keys;
@@ -113,14 +116,95 @@ namespace LocalizationKit.Editor
 
             for (var i = 0; i < all.Length; i++)
             {
+                // Subtree rather than exact match: picking Popups in a key picker has to offer
+                // what is in Popups/Quit Level as well, or a nested key is unreachable from it.
                 if (string.IsNullOrEmpty(category) ||
-                    string.Equals(LocalizationKeys.CategoryOf(all[i]), category, StringComparison.OrdinalIgnoreCase))
+                    LocalizationKeys.IsUnder(LocalizationKeys.CategoryOf(all[i]), category))
                 {
                     result.Add(all[i]);
                 }
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Every category a key can be filed under, parents before their children.
+        /// </summary>
+        /// <remarks>
+        /// This is deliberately not the catalog's category list. Categories nest, and a catalog
+        /// holding <c>Popups/Quit</c> stores no category called <c>Popups</c> — nothing has ever
+        /// been filed directly under it. That base category is still somewhere a key can go, and a
+        /// picker offering the branches but not the trunk is a picker that cannot express
+        /// <c>Popups/Title</c>. The implied paths are therefore filled in here.
+        /// <para>
+        /// The order matters: the list feeds nested menus, and a submenu reads best when its
+        /// parent is the entry immediately before it.
+        /// </para>
+        /// </remarks>
+        public static List<string> CategoryPaths(LocalizationCatalog catalog)
+        {
+            var paths = new List<string>();
+            if (catalog == null) return paths;
+
+            var children = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var roots = new List<string>();
+
+            // Path → the spelling already in the list. Categories compare case-insensitively, so
+            // a catalog carrying both "Popups/Quit" and "popups/Rate" describes one branch; without
+            // settling on one spelling the list would carry "Popups" and "popups" as siblings and
+            // a nested menu would draw two submenus for the same category.
+            var canonical = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            for (var c = 0; c < catalog.Categories.Count; c++)
+            {
+                var name = catalog.Categories[c].Name;
+                if (string.IsNullOrEmpty(name)) continue;
+
+                string parent = null;
+
+                foreach (var segment in name.Split(LocalizationKeys.Separator))
+                {
+                    var path = parent == null ? segment : parent + LocalizationKeys.Separator + segment;
+
+                    if (canonical.TryGetValue(path, out var known))
+                    {
+                        parent = known;
+                        continue;
+                    }
+
+                    canonical[path] = path;
+
+                    if (parent == null)
+                    {
+                        roots.Add(path);
+                    }
+                    else
+                    {
+                        if (!children.TryGetValue(parent, out var list))
+                            children[parent] = list = new List<string>();
+
+                        list.Add(path);
+                    }
+
+                    parent = path;
+                }
+            }
+
+            foreach (var root in roots)
+                AppendBranch(root, children, paths);
+
+            return paths;
+        }
+
+        private static void AppendBranch(string path, Dictionary<string, List<string>> children, List<string> into)
+        {
+            into.Add(path);
+
+            if (!children.TryGetValue(path, out var list)) return;
+
+            foreach (var child in list)
+                AppendBranch(child, children, into);
         }
 
         /// <summary>Writes a catalog change to disk and refreshes every editor surface.</summary>

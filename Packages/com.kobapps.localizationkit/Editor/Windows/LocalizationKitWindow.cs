@@ -16,7 +16,7 @@ namespace LocalizationKit.Editor
     /// </remarks>
     public sealed class LocalizationKitWindow : EditorWindow
     {
-        internal const string Version = "1.0.1";
+        internal const string Version = "1.1.0";
 
         private KUIWindowShell m_Shell;
         private LocalizationOverviewPage m_Overview;
