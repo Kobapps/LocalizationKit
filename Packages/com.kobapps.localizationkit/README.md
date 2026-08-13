@@ -191,6 +191,40 @@ Configure it under **Project Settings ▸ LocalizationKit**:
 | Remember language | Whether a change is written to `PlayerPrefs`. |
 | Missing key behavior | Return the key, return empty, or return `#Category/Key#`. |
 | Log missing keys | Warn on an unknown key. Editor and development builds only. |
+| App name key | Key whose text becomes the app's name on the device. Blank leaves the product name. |
+| Declare languages to OS | Tell Android and iOS which languages the app supports. On by default. |
+
+A build now refuses to start when that settings asset is missing, misnamed, outside `Resources`, or
+carries no catalog — but only when the project has a catalog with keys in it, so installing the
+package and not using it costs nothing. **Tools ▸ LocalizationKit ▸ Validate Build Setup** gives
+the same answer without starting a build.
+
+## Android and iOS builds
+
+Two things about a mobile build are decided when the app is packaged rather than while it runs, so
+the kit writes them into the generated project.
+
+**The languages the app claims to support.** On iOS this is not cosmetic: the system reports a
+device's language to an app only for languages listed in `CFBundleLocalizations`, and answers with
+the development region for everything else. Without the declaration `Application.systemLanguage`
+says *English* on a French phone, `Startup language ▸ System` never matches, and it all works
+perfectly in the editor. The kit writes `CFBundleLocalizations` and `CFBundleDevelopmentRegion`
+from the catalog. The same list is what the App Store and Google Play show as the app's languages.
+
+**The name under the icon.** Point *App name key* at a key and its text is written per language —
+`res/values-<qualifier>/strings.xml` on Android, `<code>.lproj/InfoPlist.strings` on iOS. A
+language with no text for that key falls back to the default language rather than being skipped,
+because a missing entry in a platform string table renders as the raw resource name on some
+launchers.
+
+A catalog carrying only `pt-BR` also declares plain `pt`, so a Portugal device matches it. That is
+skipped when two variants of the same base exist, because there is then no honest answer to what
+`pt` alone should mean.
+
+Both run automatically: Android through `IPostGenerateGradleAndroidProject` (after the Gradle
+project is generated, before it is built — a `PostProcessBuild` callback is too late, the APK is
+already packed), iOS through `PostProcessBuild` on the Xcode project. The Xcode edit is
+best-effort: if it fails the app keeps its product name and the build carries on.
 
 ## Right-to-left, and fonts
 

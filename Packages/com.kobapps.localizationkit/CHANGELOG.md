@@ -6,30 +6,32 @@ All notable changes to LocalizationKit are documented here. The format follows
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-08-13
-
-### Fixed
-- **Rows in the Keys list overlapped each other.** Each row stacked the key over a preview of its
-  text, and the preview wrapped — but a virtual list positions rows at a fixed height, so a row
-  that renders taller than that is drawn over the row beneath it rather than pushing it down. A
-  row is now a single line and every column clips with an ellipsis instead of wrapping.
-- **The translation area was cut off once a catalog had more than a few languages.** It had a
-  fixed 300px ceiling below a list that took everything else. The list and the translations are
-  now a draggable vertical split whose position is remembered, and the translations scroll inside
-  their own pane.
-- **Moving a key into a category that already had that key produced two entries with the same full
-  key**, the second of which could never be looked up. The move is refused now.
-- **Pressing Enter in the new-key dialog could add the key twice.** Choosing a category rebuilt the
-  dialog's contents, which re-registered the Enter handler on a root element that `Clear()` does
-  not strip callbacks from. Category changes update the controls in place instead.
-- Categories differing only in case — `Popups/Quit` beside `popups/Rate` — described one branch to
-  every lookup but were drawn and listed as two, including as two separate submenus. One spelling
-  now wins for the whole subtree.
-- **"New Category…" inside the new-key dialog opened an empty window.** It was a modal opened from
-  inside a modal, which Unity's window stack does not survive. The new name is typed inline in the
-  dialog's own category field now, with an × to go back to picking an existing one.
+## [1.1.0] - 2026-08-14
 
 ### Added
+- **Android and iOS builds are told which languages the app supports.** On iOS this fixes a real
+  bug rather than adding polish: the system reports a device's language to an app only for
+  languages listed in `CFBundleLocalizations` and answers with the development region otherwise, so
+  `Application.systemLanguage` said *English* on a French phone and `Startup language ▸ System`
+  never matched — in players only, never in the editor. Builds now write `CFBundleLocalizations`
+  and `CFBundleDevelopmentRegion` from the catalog. The same list is what the App Store and Google
+  Play show as the app's languages. Controlled by *Declare languages to OS*, on by default.
+- **A localized app name.** Point the new *App name key* setting at a key and the build writes its
+  text into `res/values-<qualifier>/strings.xml` on Android and `<code>.lproj/InfoPlist.strings` on
+  iOS, so the label under the icon follows the device language. Off unless a key is set.
+  - Language tags are converted to the oldest Android qualifier that can express them: `pt-BR`
+    becomes `values-pt-rBR`, while `zh-Hans` needs the API-24 `values-b+zh+Hans` form.
+  - A language with no text for the key falls back to the default language, because a missing
+    entry in a platform string table renders as the raw resource name on some launchers.
+  - A catalog carrying only `pt-BR` also declares plain `pt`, so a Portugal device matches it —
+    skipped when two variants of one base exist and there is no honest answer.
+- **A build refuses to start when it would ship unlocalized.** The editor finds the catalog through
+  the asset database, which a player does not have; the runtime's only route is `Resources.Load` of
+  the settings asset. A settings asset that is missing, misnamed, outside `Resources`, or carrying
+  no catalog therefore works perfectly in the editor and produces a build where every label shows
+  its raw key, with nothing logged. That now fails the build with a message naming the cause — but
+  only when the project has a catalog with keys in it. **Tools ▸ LocalizationKit ▸ Validate Build
+  Setup** answers the same question without starting a build, and Project Settings shows it too.
 - **Subcategories.** A category is a path, so `Popups/Quit Level/Title` is the key `Title` in the
   category `Popups/Quit Level`, nested as deep as you like. The runtime already split a full key at
   its *last* separator — the editor was the only thing insisting a category be a single word.
@@ -64,6 +66,27 @@ All notable changes to LocalizationKit are documented here. The format follows
 - The sample catalog ships **55 keys across 13 categories** rather than six, three levels deep
   (`Menu/Options/Audio`), with deliberate gaps and one very long string, so the manager opens onto
   something that exercises scrolling, nesting, filtering and the coverage column.
+
+### Fixed
+- **Rows in the Keys list overlapped each other.** Each row stacked the key over a preview of its
+  text, and the preview wrapped — but a virtual list positions rows at a fixed height, so a row
+  that renders taller than that is drawn over the row beneath it rather than pushing it down. A
+  row is now a single line and every column clips with an ellipsis instead of wrapping.
+- **The translation area was cut off once a catalog had more than a few languages.** It had a
+  fixed 300px ceiling below a list that took everything else. The list and the translations are
+  now a draggable vertical split whose position is remembered, and the translations scroll inside
+  their own pane.
+- **Moving a key into a category that already had that key produced two entries with the same full
+  key**, the second of which could never be looked up. The move is refused now.
+- **Pressing Enter in the new-key dialog could add the key twice.** Choosing a category rebuilt the
+  dialog's contents, which re-registered the Enter handler on a root element that `Clear()` does
+  not strip callbacks from. Category changes update the controls in place instead.
+- Categories differing only in case — `Popups/Quit` beside `popups/Rate` — described one branch to
+  every lookup but were drawn and listed as two, including as two separate submenus. One spelling
+  now wins for the whole subtree.
+- **"New Category…" inside the new-key dialog opened an empty window.** It was a modal opened from
+  inside a modal, which Unity's window stack does not survive. The new name is typed inline in the
+  dialog's own category field now, with an × to go back to picking an existing one.
 
 ### Changed
 - Dialogs open **centred over the editor** instead of in the top-left corner of the display, are

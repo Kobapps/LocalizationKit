@@ -67,6 +67,49 @@ namespace LocalizationKit.Editor
             actions.Add(KUIButton.Primary("Open Localization Manager", () => LocalizationKitWindow.Open()));
 
             root.Add(actions);
+            root.Add(BuildPlatformCard(settings));
+        }
+
+        /// <summary>
+        /// What a mobile build will carry, checked here rather than discovered on a device.
+        /// </summary>
+        private static VisualElement BuildPlatformCard(LocalizationSettings settings)
+        {
+            var card = new KUICard(
+                "Platform builds",
+                "Android and iOS are told which languages the app supports when it is packaged.");
+
+            var problem = LocalizationBuildValidator.Check();
+
+            card.Add(problem == null
+                ? new KUIBanner(KUITone.Success, "A build would ship this catalog.")
+                : new KUIBanner(KUITone.Error, "A build would ship unlocalized", problem));
+
+            var catalog = settings.Catalog;
+
+            if (catalog != null)
+            {
+                var codes = LocalizationBuildData.LanguageCodes(catalog);
+                card.Add(KUIText.KeyValue("Declared to the OS", settings.DeclareLanguagesToOS
+                    ? string.Join(", ", codes)
+                    : "off"));
+
+                var names = LocalizationBuildData.AppNames(settings, catalog);
+
+                card.Add(KUIText.KeyValue(
+                    "App name",
+                    names.Count > 0
+                        ? names[0].Name
+                        : string.IsNullOrWhiteSpace(settings.AppNameKey)
+                            ? "the product name — no key set"
+                            : $"'{settings.AppNameKey}' has no text in the default language"));
+            }
+
+            card.Add(KUILayout.Gap(6f));
+            card.Add(KUIButton.Secondary("Validate Build Setup", () =>
+                EditorApplication.ExecuteMenuItem("Tools/LocalizationKit/Validate Build Setup")));
+
+            return card;
         }
     }
 }

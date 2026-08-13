@@ -28,6 +28,8 @@ namespace LocalizationKit
         [SerializeField] private bool m_RememberLanguage = true;
         [SerializeField] private MissingKeyBehavior m_MissingKeyBehavior = MissingKeyBehavior.ReturnKey;
         [SerializeField] private bool m_LogMissingKeys = true;
+        [SerializeField, LocalizationKey] private string m_AppNameKey;
+        [SerializeField] private bool m_DeclareLanguagesToOS = true;
 
         /// <summary>The catalog the runtime builds its table from.</summary>
         public LocalizationCatalog Catalog
@@ -76,6 +78,42 @@ namespace LocalizationKit
         {
             get => m_LogMissingKeys;
             set => m_LogMissingKeys = value;
+        }
+
+        /// <summary>
+        /// Key whose text is used as the application's name on the device — the label under the
+        /// icon. Blank leaves the platform's own product name in place.
+        /// </summary>
+        /// <remarks>
+        /// Read at build time, not at run time: the home-screen label belongs to the OS and is
+        /// fixed when the app is packaged. Android takes it from <c>res/values-&lt;code&gt;</c> and
+        /// iOS from <c>&lt;code&gt;.lproj/InfoPlist.strings</c>, both written by the kit's build
+        /// post-processors.
+        /// </remarks>
+        public string AppNameKey
+        {
+            get => m_AppNameKey;
+            set => m_AppNameKey = value;
+        }
+
+        /// <summary>
+        /// Whether a build tells the OS which languages the app supports.
+        /// </summary>
+        /// <remarks>
+        /// This is not cosmetic on iOS. The system reports a device's language to an app only for
+        /// languages the app declares in <c>CFBundleLocalizations</c>; for anything else it reports
+        /// the development region. Without the declaration <see cref="Application.systemLanguage"/>
+        /// answers "English" on a French phone, and
+        /// <see cref="StartupLanguageMode.SystemLanguage"/> silently never matches — in a build
+        /// only, which is the worst place to find out.
+        /// <para>
+        /// It also drives what the App Store and Google Play list as the app's languages.
+        /// </para>
+        /// </remarks>
+        public bool DeclareLanguagesToOS
+        {
+            get => m_DeclareLanguagesToOS;
+            set => m_DeclareLanguagesToOS = value;
         }
 
         /// <summary>Loads the settings asset from <c>Resources</c>, or null when there is none.</summary>
