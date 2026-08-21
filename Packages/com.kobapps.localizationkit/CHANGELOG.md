@@ -6,6 +6,86 @@ All notable changes to LocalizationKit are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-21
+
+### Added
+- **Remote localization providers.** Translations can now live somewhere other than the catalog
+  asset. `ILocalizationProvider` is two verbs — `Fetch` and `Upload` — over a
+  `LocalizationSnapshot`, and everything downstream of it already works: merging, previewing,
+  caching, the editor window, builds, a runtime refresh. Previous releases shipped the *seam* for
+  this (`ILocalizationSource`, CSV parsing in the runtime assembly); this is the rest of it.
+  - `LocalizationSnapshot` is the transport shape — languages, keys and values as plain data, with
+    no `ScriptableObject` behind it. That matters: a download completes on an arbitrary frame, in a
+    player, where there is no asset database, and every Unity object rule applies to a catalog and
+    none of them apply to a `List`. It converts to and from a catalog, CSV, and a runtime table.
+  - `LocalizationMerge` is now the single implementation of "these strings arrived, fold them into
+    what we have". CSV import goes through it too, so the file path and the network path can no
+    longer disagree about what overwriting means. `Preview` reports what a merge *would* do by
+    running the real merge against a throwaway copy, so a preview cannot drift from the thing it is
+    previewing.
+  - `LocalizationRemote` fetches, applies and caches. The cache is not a nicety: without it every
+    cold start that begins offline begins in whatever the build shipped with. The order is local
+    catalog, then cache, then remote, each one a table swap that refreshes everything bound, each
+    failure leaving the previous step standing.
+  - An empty answer from a remote is treated as a failure rather than applied. An empty document is
+    nearly always a permissions page or a wrong sheet id, and applying it would blank the game.
+- **A Remote page in the Localization Manager.** Assign a provider, **Fetch & Preview** to see what
+  would change before anything is written, **Merge Into Catalog** to accept it, **Publish** to send
+  the catalog back. Publishing fetches and merges first, so a language column somebody added
+  remotely survives being published from the editor.
+- **Build machines.** The catalog asset is what ships inside a player, so a build made on CI from a
+  week-old checkout ships week-old text however good the runtime refresh is.
+  - `Unity -batchmode -executeMethod LocalizationKit.Editor.LocalizationRemoteSync.SyncFromRemote`
+    pulls the remote into the catalog and exits non-zero if it cannot, so a pipeline stops rather
+    than quietly shipping stale strings. **Sync remote before build** does the same as part of any
+    build, failing the build on error.
+  - This needed real work rather than a menu item: `-batchmode -executeMethod` runs a method to
+    completion with no update loop underneath it, so a `UnityWebRequest` started there is never
+    pumped and waiting for one waits forever. `LocalizationWeb` makes the call through `System.Net`
+    instead when there is no loop, and polls `EditorApplication.update` outside play mode and a
+    hidden behaviour inside it. Providers see one code path and work in all three places.
+  - The provider and the merge policy both live in the settings asset, in version control, so a
+    build machine behaves the way the repository says rather than the way somebody's local editor
+    happens to be set up.
+- **Runtime refresh.** *Fetch at runtime on startup* has players pick up text changes without a new
+  build. It does not block startup — the catalog or the cached copy is installed first and the game
+  runs on it.
+- **A Google Sheets provider sample**, importable from the Package Manager. Reading a sheet needs no
+  credential at all; writing goes through a twenty-line Apps Script web app included in the sample,
+  because Google's own API needs an OAuth flow that no build machine can complete. Upload is
+  editor-only by construction: an asset a build references ships inside that build, secret and all.
+  - **The inspector is a four-step guided setup**, not a row of fields, because nearly every way
+    this goes wrong goes wrong *silently*: an unshared sheet answers with a login page and a `200`,
+    a misspelled tab answers with a different tab, an undeployed script answers with HTML. Each step
+    carries a Done / To do badge, collapses once it is satisfied, and has a button that checks it.
+  - Everything Google exposes without a signed-in session is now a button: the id and gid come out
+    of a pasted URL, **Discover Tabs** reads the tab names out of the workbook, **Generate Secret**
+    makes and copies one, **Copy Apps Script** puts the endpoint source on the clipboard, and
+    *Test Connection* / *Test Publishing* verify each half. Sharing the sheet and deploying the
+    script still need a human — Google accepts neither from an anonymous caller — so those steps
+    open the right page instead.
+  - **A tab per category.** List the tabs in the provider and each one's rows are filed under its
+    own name, so the `Popups` tab holding `Settings/Title` yields `Popups/Settings/Title`. This is
+    the layout translators ask for; scrolling past four hundred rows to reach the store copy is not.
+    Tabs beginning with `_` are skipped, so notes can live in the workbook.
+  - Reading a named tab uses the `gviz` endpoint, which takes a tab *name* rather than the numeric
+    gid `/export` insists on — a name is something you can type, and it survives a tab being moved
+    or the workbook being copied.
+  - **A misspelled tab name does not fail, it lies:** `gviz` answers a request for a tab that does
+    not exist with the *first* tab of the workbook and a `200`. Left alone, a renamed tab would file
+    one category's translations under another category's name. Two tabs returning byte-identical
+    documents is the signature, and the provider now skips the duplicate and reports it rather than
+    merging it.
+- **`LocalizationKeys.Qualify`** — files a key under a category unless it is already filed there.
+  What any source carrying its category out of band needs: a tab per category, a folder of files, an
+  endpoint returning one category at a time. Idempotent, which is the point: prefixing twice yields
+  a key that exists nowhere and renders on screen as its own name.
+
+### Changed
+- `LocalizationCsv.Write` now takes a snapshot, with the catalog overload delegating to it, so there
+  is exactly one implementation of the escaping. `LocalizationTableBuilder.CatalogFromCsv` likewise
+  goes through `LocalizationSnapshot`, leaving one parse-to-model path instead of two.
+
 ## [1.1.0] - 2026-08-14
 
 ### Added

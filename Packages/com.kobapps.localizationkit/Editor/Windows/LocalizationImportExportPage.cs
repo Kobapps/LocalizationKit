@@ -83,22 +83,18 @@ namespace LocalizationKit.Editor
 
         private VisualElement BuildRemoteCard()
         {
-            var card = new KUICard("Remote catalogs", "Not wired up yet — but the seam is in place.");
+            var card = new KUICard(
+                "Remote catalogs",
+                "The same merge, with the network in front of it.");
 
             card.Add(KUIText.Body(
-                "Localization reads a LocalizationTable, not a catalog asset. Anything that can produce "
-                + "a table can be the source, so a Google Sheet published to CSV needs a fetch and a "
-                + "call to Localization.SetTable — every bound field and component refreshes on its own."));
+                "A provider fetches the shape above from wherever translations actually live — a Google "
+                + "Sheet, a CDN, a translation service — and hands it to the same merge this page uses. "
+                + "The Remote page has the buttons; the Automation section there covers builds and "
+                + "runtime refreshes."));
 
             card.Add(KUILayout.Gap(6f));
-            card.Add(KUIText.Code(
-                "var csv = await Download(url);\n"
-                + "var table = LocalizationTableBuilder.FromCsv(csv);\n"
-                + "Localization.SetTable(table);"));
-
-            card.Add(KUILayout.Gap(6f));
-            card.Add(KUIText.Muted(
-                "In Sheets: File ▸ Share ▸ Publish to web ▸ Comma-separated values."));
+            card.Add(KUIButton.Secondary("Open Remote Page", () => m_Window.ShowPage(4)));
 
             return card;
         }
@@ -149,14 +145,13 @@ namespace LocalizationKit.Editor
                 return;
             }
 
-            var parsed = LocalizationCsv.Parse(text, delimiter);
-            if (parsed.Failed)
+            if (!LocalizationSnapshot.TryFromCsv(text, out var incoming, out var error, delimiter))
             {
-                EditorUtility.DisplayDialog("Import failed", parsed.Error, "OK");
+                EditorUtility.DisplayDialog("Import failed", error, "OK");
                 return;
             }
 
-            var report = Apply(catalog, parsed);
+            var report = Apply(catalog, incoming);
 
             LocalizationEditorCatalog.Save(catalog);
             m_Window.Refresh();
@@ -165,91 +160,18 @@ namespace LocalizationKit.Editor
             m_Window.Toast("Import complete.");
         }
 
-        private string Apply(LocalizationCatalog catalog, LocalizationCsv.ParseResult parsed)
+        private string Apply(LocalizationCatalog catalog, LocalizationSnapshot incoming)
         {
             LocalizationEditorCatalog.RecordUndo(catalog, "Import Localization");
 
-            var addedLanguages = new List<string>();
-            var skippedLanguages = new List<string>();
-            var addedKeys = 0;
-            var updated = 0;
-            var skippedKeys = 0;
-
-            // Resolve each CSV column to a catalog language index once, rather than per row.
-            var columnToLanguage = new int[parsed.LanguageCodes.Length];
-
-            for (var c = 0; c < parsed.LanguageCodes.Length; c++)
+            var report = LocalizationMerge.Into(catalog, incoming, new LocalizationMergeOptions
             {
-                var code = parsed.LanguageCodes[c];
-                var index = catalog.IndexOfLanguage(code);
+                AddNewKeys = m_AddNewKeys,
+                AddNewLanguages = m_AddNewLanguages,
+                OverwriteExisting = m_OverwriteExisting
+            });
 
-                if (index < 0 && m_AddNewLanguages && LocalizationKeys.IsValidName(code))
-                {
-                    index = catalog.AddLanguage(new LanguageInfo(code, code));
-                    addedLanguages.Add(code);
-                }
-                else if (index < 0)
-                {
-                    skippedLanguages.Add(code);
-                }
-
-                columnToLanguage[c] = index;
-            }
-
-            foreach (var row in parsed.Rows)
-            {
-                var hasCategory = LocalizationKeys.TrySplit(row.Key, out var category, out var key);
-                if (!hasCategory) category = LocalizationKeys.DefaultCategory;
-
-                var entry = catalog.FindByFullKey(LocalizationKeys.Compose(category, key));
-
-                if (entry == null)
-                {
-                    if (!m_AddNewKeys)
-                    {
-                        skippedKeys++;
-                        continue;
-                    }
-
-                    entry = catalog.AddEntry(category, key);
-                    addedKeys++;
-                }
-
-                for (var c = 0; c < columnToLanguage.Length; c++)
-                {
-                    var language = columnToLanguage[c];
-                    if (language < 0) continue;
-
-                    var incoming = c < row.Values.Length ? row.Values[c] : null;
-                    if (string.IsNullOrEmpty(incoming)) continue;
-
-                    if (!m_OverwriteExisting && !entry.IsMissing(language)) continue;
-                    if (string.Equals(entry.GetValue(language), incoming, StringComparison.Ordinal)) continue;
-
-                    entry.SetValue(language, incoming);
-                    updated++;
-                }
-            }
-
-            catalog.ResizeEntries();
-
-            var report = new System.Text.StringBuilder();
-            report.AppendLine($"{parsed.Rows.Count} rows read.");
-            report.AppendLine($"{addedKeys} keys added, {updated} translations written.");
-
-            if (skippedKeys > 0)
-                report.AppendLine($"{skippedKeys} unknown keys skipped (\"add keys\" is off).");
-
-            if (addedLanguages.Count > 0)
-                report.AppendLine($"Languages added: {string.Join(", ", addedLanguages)}.");
-
-            if (skippedLanguages.Count > 0)
-                report.AppendLine($"Columns ignored (no such language): {string.Join(", ", skippedLanguages)}.");
-
-            foreach (var warning in parsed.Warnings)
-                report.AppendLine($"• {warning}");
-
-            return report.ToString();
+            return report.Summary();
         }
     }
 }

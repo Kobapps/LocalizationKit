@@ -16,13 +16,14 @@ namespace LocalizationKit.Editor
     /// </remarks>
     public sealed class LocalizationKitWindow : EditorWindow
     {
-        internal const string Version = "1.1.0";
+        internal const string Version = "1.2.0";
 
         private KUIWindowShell m_Shell;
         private LocalizationOverviewPage m_Overview;
         private LocalizationLanguagesPage m_Languages;
         private LocalizationKeysPage m_Keys;
         private LocalizationImportExportPage m_ImportExport;
+        private LocalizationRemotePage m_Remote;
 
         /// <summary>Opens the window, focusing it if it is already up.</summary>
         [MenuItem("Tools/LocalizationKit/Localization Manager", priority = 100)]
@@ -44,6 +45,15 @@ namespace LocalizationKit.Editor
             window.ShowPage(2);
         }
 
+        /// <summary>Opens the window on the Remote page. Used by Project Settings.</summary>
+        public static LocalizationKitWindow OpenRemote()
+        {
+            var window = Open();
+            window.ShowPage(4);
+
+            return window;
+        }
+
         private void OnEnable()
         {
             LocalizationEditorCatalog.Changed += Refresh;
@@ -60,6 +70,7 @@ namespace LocalizationKit.Editor
             m_Languages = new LocalizationLanguagesPage(this);
             m_Keys = new LocalizationKeysPage(this);
             m_ImportExport = new LocalizationImportExportPage(this);
+            m_Remote = new LocalizationRemotePage(this);
 
             m_Shell = new KUIWindowShell("Localization", $"v{Version}").MountInto(rootVisualElement);
 
@@ -74,6 +85,7 @@ namespace LocalizationKit.Editor
             m_Shell.Sidebar.Add("Languages", () => m_Shell.SetContent(m_Languages.Build));
             m_Shell.Sidebar.Add("Keys", () => m_Shell.SetContent(m_Keys.Build));
             m_Shell.Sidebar.Add("Import & Export", () => m_Shell.SetContent(m_ImportExport.Build));
+            m_Shell.Sidebar.Add("Remote", () => m_Shell.SetContent(m_Remote.Build));
             m_Shell.Sidebar.AddSeparator();
             m_Shell.Sidebar.AddFootnote("Catalog is a project asset. Changes are saved to it directly.");
 
@@ -93,6 +105,7 @@ namespace LocalizationKit.Editor
                 case 1: m_Shell.SetContent(m_Languages.Build); break;
                 case 2: m_Shell.SetContent(m_Keys.Build); break;
                 case 3: m_Shell.SetContent(m_ImportExport.Build); break;
+                case 4: m_Shell.SetContent(m_Remote.Build); break;
                 default: m_Shell.SetContent(m_Overview.Build); break;
             }
         }

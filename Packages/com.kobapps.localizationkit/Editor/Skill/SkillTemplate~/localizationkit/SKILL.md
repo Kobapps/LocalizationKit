@@ -7,8 +7,9 @@ description: >-
   languages or keys, marking fields with [Localized] / [LocalizationKey], attaching
   LocalizedText / LocalizedTMPText, reading strings with L.T or Localization.Get,
   generating LocKeys constants, importing and exporting CSV for translators, handling
-  right-to-left languages and per-language fonts, or loading a catalog from a remote
-  Google Sheet. Trigger it even when the user says only "translate this game", "add
+  right-to-left languages and per-language fonts, or driving the catalog from a remote —
+  a Google Sheet, a CDN, a translation service — through a localization provider, including
+  syncing it on a build machine or refreshing it at runtime. Trigger it even when the user says only "translate this game", "add
   Hebrew", "make this text multi-language", "extract the hard-coded strings", "support
   another language", or "hook the UI up to translations" — LocalizationKit has
   non-obvious rules (partial classes, a settings asset in Resources, Category/Key
@@ -26,7 +27,7 @@ Read this file top to bottom for a normal integration. For depth:
 
 - `references/api.md` — the full API surface. **Open it before inventing a method name.**
 - `references/patterns.md` — recipes: localizing an existing project, CSV round-trips,
-  remote catalogs, RTL and fonts, formatted and pluralized strings.
+  remote providers and build-machine sync, RTL and fonts, formatted and pluralized strings.
 - `references/pitfalls.md` — every way this fails *silently*. Read it before debugging.
 
 ## The mental model (read this first)

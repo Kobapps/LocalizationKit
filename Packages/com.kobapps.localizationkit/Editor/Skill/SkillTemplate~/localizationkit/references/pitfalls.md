@@ -138,6 +138,52 @@ It lives in `LocalizationKit.uGUI`, and `LocalizedTMPText` in `LocalizationKit.T
 Both are separate assemblies gated on `com.unity.ugui` so neither UI package is a hard
 dependency of the kit. Reference the right assembly from your own asmdef.
 
+## "The fetch button in an editor window never comes back"
+
+`UnityWebRequest` is driven by the player loop, which does not run in the editor outside play
+mode, and does not run at all inside `-batchmode -executeMethod`. A provider that sends one and
+waits waits forever — in exactly the two places a translator and a build machine use it.
+
+Use `LocalizationWeb.Get` / `LocalizationWeb.Post` instead of `UnityWebRequest` directly. They
+poll `EditorApplication.update` outside play mode, use a hidden behaviour inside it, and switch
+to a synchronous `System.Net` call in batch mode so the answer lands before the method returns.
+
+## "The remote fetch says the header needs a key column"
+
+Google answers a sheet that is not shared with an HTML sign-in page — sometimes as a `401`,
+sometimes as a cheerful `200 OK` — rather than an error. Parsed as CSV, that becomes a
+confusing complaint about the header.
+
+Share the sheet as *Anyone with the link ▸ Viewer*, or use **File ▸ Share ▸ Publish to web**.
+The shipped Sheets provider checks for this and says so plainly; a provider you write yourself
+should too.
+
+## "A CI build shipped last week's translations"
+
+A runtime fetch does not help: the catalog asset is what ships inside the player, and it is
+whatever the checkout contained. The runtime refresh also never reaches the first frame, or a
+player who is offline.
+
+Turn on *Sync remote before build*, or run
+`-executeMethod LocalizationKit.Editor.LocalizationRemoteSync.SyncFromRemote` before building.
+Both fail loudly rather than building stale text.
+
+## "A fetch blanked every label"
+
+Something applied an empty document — nearly always a permissions page or a wrong sheet id
+rather than a genuinely empty remote.
+
+`LocalizationRemote.FetchAndApply` refuses an empty answer and leaves the active table alone,
+and `LocalizationRemoteSync` refuses to merge one. If you call `Localization.SetTable` yourself
+you are on your own: check `KeyCount` first.
+
+## "Merging from the remote deleted keys"
+
+`RemoveKeysNotIncoming` — *Remove keys the remote does not have* on the Remote page — is off by
+default for this reason. With it on, a partial fetch deletes everything it did not carry. Turn
+it on only when the remote is genuinely the source of truth, and use
+`LocalizationMerge.Preview` first: it reports what would change without writing anything.
+
 ## Performance traps
 
 - `L.T(key, args)` allocates — it composes a string. Fine on an event, wrong in `Update`.

@@ -204,6 +204,122 @@ static class LocalizationBinder
     int  Count { get; }
 ```
 
+## Remote providers
+
+```csharp
+interface ILocalizationProvider
+    string DisplayName { get; }
+    LocalizationProviderCapabilities Capabilities { get; }   // None | Fetch | Upload | Both
+    void Fetch(Action<LocalizationFetchResult> onCompleted)  // callback runs EXACTLY once
+    void Upload(LocalizationSnapshot snapshot, Action<LocalizationUploadResult> onCompleted)
+
+abstract class LocalizationProviderAsset : ScriptableObject, ILocalizationProvider
+    // derive from this for a provider configured in the inspector
+
+readonly struct LocalizationFetchResult
+    bool Success; LocalizationSnapshot Snapshot; string Error
+    static Ok(snapshot) / Failed(error)
+
+readonly struct LocalizationUploadResult
+    bool Success; int RowsWritten; string Error
+    static Ok(rowsWritten = 0) / Failed(error)
+
+extension methods:  provider.CanFetch()   provider.CanUpload()
+
+sealed class LocalizationProviderSource : ILocalizationSource   // adapter
+```
+
+Transport shape — plain data, no ScriptableObject, safe to build off the main thread:
+
+```csharp
+sealed class LocalizationSnapshot
+    IReadOnlyList<LanguageInfo> Languages;  IReadOnlyList<Row> Rows
+    int LanguageCount, RowCount;  bool IsEmpty
+    string DefaultLanguageCode { get; set; }
+    string SourceName { get; set; };  List<string> Warnings
+
+    int  IndexOfLanguage(string code)
+    int  AddLanguage(LanguageInfo language)          // widens every existing row
+    Row  Find(string fullKey) / GetOrAddRow(string fullKey)
+    string GetValue(string fullKey, string languageCode)
+    bool   SetValue(string fullKey, string languageCode, string value)
+
+    static LocalizationSnapshot FromCatalog(LocalizationCatalog catalog)
+    static LocalizationSnapshot FromCsv(string csv, char delimiter = ',')       // null on failure
+    static bool TryFromCsv(string csv, out snapshot, out error, char delimiter = ',')
+
+    string             ToCsv(char delimiter = ',')
+    LocalizationCatalog ToCatalog(string name = null)   // TRANSIENT — DestroyTransient it
+    LocalizationTable   ToTable(MissingKeyBehavior = ReturnKey, string fallbackLanguageCode = null)
+
+    static void DestroyTransient(LocalizationCatalog catalog)
+
+    class Row
+        string Key, Description; string[] Values
+        string GetValue(int languageIndex);  void SetValue(int, string);  bool IsMissing(int)
+```
+
+Merging — one implementation, shared by CSV import, the Remote page and the build step:
+
+```csharp
+struct LocalizationMergeOptions
+    bool AddNewKeys, AddNewLanguages, OverwriteExisting, RemoveKeysNotIncoming
+    static Default     // add keys, overwrite, ignore unknown languages, delete nothing
+    static FillBlanks  // never overwrite — the safe way to accept a translation pass back
+    static Mirror      // make the target match exactly, deletions included
+
+sealed class LocalizationMergeReport
+    int RowsRead, AddedKeys, UpdatedValues, SkippedKeys, RemovedKeys
+    List<string> AddedLanguages, IgnoredLanguages, Warnings
+    bool ChangedAnything;  string Summary();  string ShortSummary()
+
+static class LocalizationMerge
+    LocalizationMergeReport Into(LocalizationCatalog target, snapshot, options)     // mutates
+    LocalizationMergeReport Preview(LocalizationCatalog target, snapshot, options)  // does not
+    LocalizationSnapshot    Merge(baseline, incoming, options, out report)
+```
+
+Fetching, caching, applying:
+
+```csharp
+static class LocalizationRemote
+    ILocalizationProvider Provider { get }        // from the settings asset
+    bool IsFetching;  DateTime LastFetchUtc;  string CachePath
+    event Action<LocalizationSnapshot> Fetched;  event Action<string> FetchFailed
+
+    void Fetch(provider, Action<LocalizationFetchResult> onCompleted)
+    void FetchAndApply(provider = null, onCompleted = null, bool cache = true)
+    void Apply(LocalizationSnapshot snapshot)     // keeps the active language when it exists
+    bool ApplyCached();  bool TryLoadCache(out snapshot);  void WriteCache(s);  void ClearCache()
+    void Upload(provider, snapshot, onCompleted);  void UploadCatalog(provider, catalog, onCompleted)
+    void MergeAndUpload(provider, catalog, options, onCompleted)   // fetch, merge, then write
+    void Reset()
+```
+
+HTTP that works in a player, in the editor, and under `-batchmode`:
+
+```csharp
+static class LocalizationWeb
+    bool Blocking { get; set; }        // defaults to Application.isBatchMode; editor-only effect
+    void Get(url, Action<LocalizationWebResponse> onCompleted, headers = null, timeoutSeconds = 30)
+    void Post(url, body, contentType, onCompleted, headers = null, timeoutSeconds = 30)
+    bool WaitForPendingRequests(float timeoutSeconds = 120f)
+    const string FormContentType = "application/x-www-form-urlencoded"
+
+sealed class LocalizationWebResponse
+    bool Success; long StatusCode; string Text; string Error
+```
+
+Editor / CI (assembly `LocalizationKit.Editor`, namespace `LocalizationKit.Editor`):
+
+```csharp
+static class LocalizationRemoteSync
+    bool Pull(catalog, provider, options, out report, out error)   // blocking
+    bool Pull(out report, out error)                               // uses the settings asset
+    bool Push(catalog, provider, out rowsWritten, out error)       // blocking; fetch-merge-upload
+    void SyncFromRemote()          // -executeMethod entry point; EditorApplication.Exit(1) on failure
+```
+
 ## Sources, CSV, settings
 
 ```csharp
@@ -222,6 +338,7 @@ static class LocalizationTableBuilder
 static class LocalizationCsv
     ParseResult Parse(string text, char delimiter = ',')     // never throws; check .Failed
     string      Write(LocalizationCatalog catalog, char delimiter = ',')
+    string      Write(LocalizationSnapshot snapshot, char delimiter = ',')
 
 static class LocalizationKeys
     const char   Separator = '/'

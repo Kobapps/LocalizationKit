@@ -98,6 +98,28 @@ namespace LocalizationKit
 
             var table = LocalizationTable.Build(settings.Catalog, settings.MissingKeyBehavior);
             SetTable(table, ResolveStartupLanguage(settings, table));
+
+            StartRemote(settings);
+        }
+
+        /// <summary>
+        /// Brings the remote up behind the local catalog, when the project has one configured.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately after <see cref="SetTable"/> and deliberately not awaited. The game already
+        /// has a table by this point and runs on it; the cached copy of the last fetch replaces it
+        /// straight away if there is one, and the remote's answer replaces that whenever it
+        /// arrives. Every step is a table swap, so everything bound refreshes itself and a step
+        /// that fails simply leaves the previous one standing.
+        /// </remarks>
+        private static void StartRemote(LocalizationSettings settings)
+        {
+            if (settings.RemoteProvider == null) return;
+            if (!settings.FetchRemoteOnStartup) return;
+
+            if (settings.UseRemoteCache) LocalizationRemote.ApplyCached();
+
+            LocalizationRemote.FetchAndApply(settings.RemoteProvider, cache: settings.UseRemoteCache);
         }
 
         /// <summary>

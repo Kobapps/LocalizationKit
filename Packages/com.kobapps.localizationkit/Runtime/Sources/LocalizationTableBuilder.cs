@@ -55,53 +55,16 @@ namespace LocalizationKit
         /// <returns>A transient catalog, or null when the document could not be read.</returns>
         public static LocalizationCatalog CatalogFromCsv(string csv, string defaultLanguage = null, char delimiter = ',')
         {
-            var parsed = LocalizationCsv.Parse(csv, delimiter);
-            if (parsed.Failed)
-            {
-                Debug.LogWarning($"[LocalizationKit] Could not read the document: {parsed.Error}");
-                return null;
-            }
+            var snapshot = LocalizationSnapshot.FromCsv(csv, delimiter);
+            if (snapshot == null) return null;
 
-            var catalog = ScriptableObject.CreateInstance<LocalizationCatalog>();
-            catalog.name = "Transient Localization Catalog";
+            if (!string.IsNullOrEmpty(defaultLanguage))
+                snapshot.DefaultLanguageCode = defaultLanguage;
 
-            for (var i = 0; i < parsed.LanguageCodes.Length; i++)
-            {
-                var code = parsed.LanguageCodes[i];
-                if (string.IsNullOrWhiteSpace(code)) continue;
+            if (snapshot.Warnings.Count > 0)
+                Debug.LogWarning($"[LocalizationKit] Read the document with {snapshot.Warnings.Count} warning(s); first: {snapshot.Warnings[0]}");
 
-                catalog.AddLanguage(new LanguageInfo(code, code));
-            }
-
-            catalog.DefaultLanguageCode = !string.IsNullOrEmpty(defaultLanguage) && catalog.IndexOfLanguage(defaultLanguage) >= 0
-                ? defaultLanguage
-                : parsed.LanguageCodes.Length > 0 ? parsed.LanguageCodes[0] : null;
-
-            foreach (var row in parsed.Rows)
-            {
-                if (string.IsNullOrEmpty(row.Key)) continue;
-
-                var category = LocalizationKeys.TrySplit(row.Key, out var categoryName, out var key)
-                    ? categoryName
-                    : LocalizationKeys.DefaultCategory;
-
-                var entry = catalog.AddEntry(category, key);
-
-                for (var c = 0; c < row.Values.Length; c++)
-                {
-                    // The catalog's language index tracks the CSV column order, because languages
-                    // were added in that order above — but only for columns with a usable code.
-                    var languageIndex = catalog.IndexOfLanguage(parsed.LanguageCodes[c]);
-                    if (languageIndex < 0) continue;
-
-                    entry.SetValue(languageIndex, row.Values[c]);
-                }
-            }
-
-            if (parsed.Warnings.Count > 0)
-                Debug.LogWarning($"[LocalizationKit] Read the document with {parsed.Warnings.Count} warning(s); first: {parsed.Warnings[0]}");
-
-            return catalog;
+            return snapshot.ToCatalog();
         }
     }
 }

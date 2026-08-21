@@ -138,42 +138,46 @@ namespace LocalizationKit
         /// Writes a catalog out in the same shape <see cref="Parse"/> reads, so a round trip through
         /// a spreadsheet is lossless for text.
         /// </summary>
-        public static string Write(LocalizationCatalog catalog, char delimiter = ',')
-        {
-            if (catalog == null) return string.Empty;
+        public static string Write(LocalizationCatalog catalog, char delimiter = ',') =>
+            Write(LocalizationSnapshot.FromCatalog(catalog), delimiter);
 
-            catalog.ResizeEntries();
+        /// <summary>
+        /// Writes a snapshot out in the same shape <see cref="Parse"/> reads — the document an
+        /// upload sends and an export saves.
+        /// </summary>
+        /// <remarks>
+        /// Everything that writes this format comes through here. Escaping is the sort of thing
+        /// that gets fixed in one copy and stays broken in the other.
+        /// </remarks>
+        public static string Write(LocalizationSnapshot snapshot, char delimiter = ',')
+        {
+            if (snapshot == null) return string.Empty;
 
             var builder = new StringBuilder(1024);
 
             builder.Append("Key");
-            for (var i = 0; i < catalog.Languages.Count; i++)
+            for (var i = 0; i < snapshot.Languages.Count; i++)
             {
                 builder.Append(delimiter);
-                Escape(builder, catalog.Languages[i].Code, delimiter);
+                Escape(builder, snapshot.Languages[i].Code, delimiter);
             }
 
             builder.Append('\n');
 
-            for (var c = 0; c < catalog.Categories.Count; c++)
+            for (var r = 0; r < snapshot.Rows.Count; r++)
             {
-                var category = catalog.Categories[c];
+                var row = snapshot.Rows[r];
+                if (row == null || string.IsNullOrEmpty(row.Key)) continue;
 
-                for (var e = 0; e < category.Entries.Count; e++)
+                Escape(builder, row.Key, delimiter);
+
+                for (var lang = 0; lang < snapshot.Languages.Count; lang++)
                 {
-                    var entry = category.Entries[e];
-                    if (entry == null || string.IsNullOrEmpty(entry.Key)) continue;
-
-                    Escape(builder, LocalizationKeys.Compose(category.Name, entry.Key), delimiter);
-
-                    for (var lang = 0; lang < catalog.Languages.Count; lang++)
-                    {
-                        builder.Append(delimiter);
-                        Escape(builder, entry.GetValue(lang), delimiter);
-                    }
-
-                    builder.Append('\n');
+                    builder.Append(delimiter);
+                    Escape(builder, row.GetValue(lang), delimiter);
                 }
+
+                builder.Append('\n');
             }
 
             return builder.ToString();

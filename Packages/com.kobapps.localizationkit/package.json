@@ -1,8 +1,8 @@
 {
   "name": "com.kobapps.localizationkit",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "displayName": "LocalizationKit",
-  "description": "Localization for Unity with source-generated bindings. Mark a string field with [Localized(\"key\")] and it is filled in and kept in step with the active language automatically; mark one with [LocalizationKey] to get a searchable key picker in the inspector. Keys are organised into categories (Default, Popups, Store, Tutorials, …) inside a catalog asset edited from a full editor window. Drop LocalizedText / LocalizedTMPText on a GameObject to localize UI without writing code. Built for zero per-frame cost: keys resolve once, a language switch swaps a single array reference, and reads never allocate. Local catalogs today, with a source interface and CSV import ready for Google Sheets and other remote providers.",
+  "description": "Localization for Unity with source-generated bindings. Mark a string field with [Localized(\"key\")] and it is filled in and kept in step with the active language automatically; mark one with [LocalizationKey] to get a searchable key picker in the inspector. Keys are organised into categories (Default, Popups, Store, Tutorials, …) inside a catalog asset edited from a full editor window. Drop LocalizedText / LocalizedTMPText on a GameObject to localize UI without writing code. Translations can live somewhere else entirely: a provider fetches, merges and uploads a snapshot, so a Google Sheet can drive the catalog — from the editor, from a build machine, or at runtime. Built for zero per-frame cost: keys resolve once, a language switch swaps a single array reference, and reads never allocate.",
   "unity": "6000.0",
   "license": "MIT",
   "documentationUrl": "https://github.com/Kobapps/LocalizationKit#readme",
@@ -26,7 +26,9 @@
     "textmeshpro",
     "source-generator",
     "csv",
-    "google-sheets"
+    "google-sheets",
+    "remote",
+    "spreadsheet"
   ],
   "author": {
     "name": "Kobapps",
@@ -37,6 +39,11 @@
       "displayName": "Localization Showcase",
       "description": "A catalog with four categories and three languages, a language switcher, attribute-bound scripts and localized uGUI/TMP components in a runtime scene. Includes a Tools menu item that builds the scene programmatically.",
       "path": "Samples~/LocalizationShowcase"
+    },
+    {
+      "displayName": "Google Sheets Provider",
+      "description": "A working ILocalizationProvider that reads a Google Sheet and, with the included Apps Script endpoint, writes back to it. Includes an inspector with a Test Fetch button and setup notes for editor, build-machine and runtime use.",
+      "path": "Samples~/GoogleSheetsProvider"
     }
   ]
 }

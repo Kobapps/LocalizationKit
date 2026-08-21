@@ -17,6 +17,15 @@ namespace LocalizationKit.Editor
     /// </remarks>
     internal static class LocalizationSettingsPage
     {
+        private static readonly string[] RemoteFields =
+        {
+            "m_RemoteProvider",
+            "m_FetchRemoteOnStartup",
+            "m_UseRemoteCache",
+            "m_SyncRemoteBeforeBuild",
+            "m_RemoteMergeOptions"
+        };
+
         [SettingsProvider]
         private static SettingsProvider Create() => KUISettingsPage.Create(
             "Project/LocalizationKit",
@@ -46,7 +55,9 @@ namespace LocalizationKit.Editor
                 return;
             }
 
-            root.Add(KUIProperty.InspectorCard(settings, "Runtime"));
+            // The remote fields get their own card below; drawing them twice would leave two
+            // controls editing one value, which is a reliable way to make an edit look lost.
+            root.Add(KUIProperty.InspectorCard(settings, "Runtime", RemoteFields));
 
             var actions = new KUICard("Catalog", AssetDatabase.GetAssetPath(settings));
 
@@ -67,7 +78,54 @@ namespace LocalizationKit.Editor
             actions.Add(KUIButton.Primary("Open Localization Manager", () => LocalizationKitWindow.Open()));
 
             root.Add(actions);
+            root.Add(BuildRemoteCard(settings));
             root.Add(BuildPlatformCard(settings));
+        }
+
+        /// <summary>
+        /// Where translations come from when they do not come from the catalog asset.
+        /// </summary>
+        /// <remarks>
+        /// Here rather than only in the editor window because a build machine reads exactly these
+        /// fields, and a setting a build depends on belongs where a Unity user goes looking for it.
+        /// </remarks>
+        private static VisualElement BuildRemoteCard(LocalizationSettings settings)
+        {
+            var card = new KUICard(
+                "Remote",
+                "A provider fetches translations from wherever they actually live.");
+
+            // One SerializedObject for the card: separate ones would each bind independently and
+            // the last to be written would win.
+            var serialized = new SerializedObject(settings);
+
+            card.Add(KUIProperty.Field(serialized, "m_RemoteProvider"));
+
+            if (settings.RemoteProvider == null)
+            {
+                card.Add(KUILayout.Gap(6f));
+                card.Add(KUIText.Muted(
+                    "None assigned — the catalog asset is the only source. Import the Google Sheets "
+                    + "sample from the Package Manager for a working provider."));
+            }
+            else
+            {
+                card.Add(KUIProperty.Field(serialized, "m_SyncRemoteBeforeBuild"));
+                card.Add(KUIProperty.Field(serialized, "m_FetchRemoteOnStartup"));
+                card.Add(KUIProperty.Field(serialized, "m_UseRemoteCache"));
+                card.Add(KUIProperty.Field(serialized, "m_RemoteMergeOptions"));
+
+                card.Add(KUILayout.Gap(6f));
+                card.Add(KUIText.Muted(
+                    "The catalog asset is what ships inside a player, so a build machine has to pull "
+                    + "before it builds. A runtime fetch fixes text after release, not the first "
+                    + "frame of a cold start."));
+            }
+
+            card.Add(KUILayout.Gap(6f));
+            card.Add(KUIButton.Secondary("Open Remote Page", () => LocalizationKitWindow.OpenRemote()));
+
+            return card;
         }
 
         /// <summary>

@@ -3,7 +3,9 @@
 Localization for Unity that costs nothing per frame and almost nothing to adopt.
 
 Mark a field, drop a component, or call one method. Keys live in a catalog asset you edit in a
-proper window; a language change reaches every bound field and label on its own.
+proper window; a language change reaches every bound field and label on its own. When the strings
+live somewhere else — a Google Sheet, a CDN, a translation service — a provider fetches, merges and
+publishes them, from the editor, from a build machine, or at runtime.
 
 Open **Tools ▸ LocalizationKit ▸ Localization Manager** to create a catalog and start.
 
@@ -259,26 +261,135 @@ since.
 Exports are UTF-8 with a BOM, because without one Excel opens the file in the system codepage and
 mangles every non-ASCII string.
 
+The file path and the network path share one merge implementation, so importing a CSV and fetching
+from a provider cannot disagree about what overwriting means.
+
 ## Remote catalogs
 
-Not shipped, but the seam is real rather than aspirational.
-
-`Localization` reads a `LocalizationTable`, never a catalog asset. Anything that can produce a table
-can be the source:
+`Localization` reads a `LocalizationTable`, never a catalog asset, so anything that can produce a
+table can be the source. A **provider** is that anything.
 
 ```csharp
-using var request = UnityWebRequest.Get(publishedSheetUrl);
-await request.SendWebRequest();
+public interface ILocalizationProvider
+{
+    string DisplayName { get; }
+    LocalizationProviderCapabilities Capabilities { get; }
 
-var table = LocalizationTableBuilder.FromCsv(request.downloadHandler.text, defaultLanguage: "en");
-Localization.SetTable(table, Localization.LanguageCode);
+    void Fetch(Action<LocalizationFetchResult> onCompleted);
+    void Upload(LocalizationSnapshot snapshot, Action<LocalizationUploadResult> onCompleted);
+}
 ```
 
-Every `[Localized]` field and every localized component refreshes itself. No calling code changes.
-In Sheets, the URL comes from **File ▸ Share ▸ Publish to web ▸ Comma-separated values**.
+Two verbs over a `LocalizationSnapshot` — languages, keys and values as plain data, with no
+`ScriptableObject` behind it. That is deliberate: a download completes on an arbitrary frame, in a
+player, where there is no asset database, and every rule about when a Unity object may be touched
+applies to a catalog and none of them apply to a `List`.
 
-`ILocalizationSource` is the interface to implement for something more involved; `LocalCatalogSource`
-is the shipped one.
+A provider does not decide what happens to what it fetched. Merging is `LocalizationMerge`'s job and
+applying is `LocalizationRemote`'s, which is what lets one provider serve an editor sync, a build
+step and a runtime refresh without behaving differently in each.
+
+**Import the Google Sheets sample** from the Package Manager for a working one. Reading a sheet
+needs no credential at all.
+
+### In the editor
+
+**Localization Manager ▸ Remote**: assign a provider, **Fetch & Preview**, then **Merge Into
+Catalog**. The preview reports what would change *before* anything is written — a merge is the one
+operation here that can quietly lose work, and a success toast is no way to find out that forty
+strings were overwritten.
+
+Three switches decide the policy, and they live on the settings asset rather than in the window, so
+a sync run on a build machine applies the same rules as one run by a person: whether unknown keys
+are added, whether unknown languages are added, and whether existing text is overwritten. A fourth,
+off by default, deletes keys the remote does not carry.
+
+**Publish** sends the catalog back. It fetches and merges first, so a language column somebody added
+in the sheet survives being published from the editor.
+
+### On a build machine
+
+The catalog asset is what ships inside the player. A build made on CI from a checkout that is a week
+old ships week-old text, however good the runtime refresh is — and a runtime refresh never helps the
+first frame, or a player who is offline. So pull before building:
+
+```bash
+Unity -batchmode -quit -projectPath .   -executeMethod LocalizationKit.Editor.LocalizationRemoteSync.SyncFromRemote
+```
+
+Exits non-zero when the fetch fails, so a pipeline stops rather than quietly shipping stale strings.
+Or turn on **Sync remote before build** and every build pulls first, failing the build if it cannot.
+
+This is not free of substance. `-batchmode -executeMethod` runs a method to completion with no
+update loop underneath it, so a `UnityWebRequest` started there is never pumped and waiting for one
+waits forever. `LocalizationWeb` makes the call through `System.Net` instead when there is no loop,
+polls `EditorApplication.update` outside play mode, and uses a hidden behaviour inside it. A
+provider written against it works in all three places without knowing which one it is in.
+
+### At runtime
+
+Turn on **Fetch at runtime on startup** and players pick up text changes without a new build. It
+does not block startup:
+
+1. the catalog is installed and the game runs on it,
+2. the cached copy of the last fetch replaces it, if there is one,
+3. the remote's answer replaces that whenever it arrives.
+
+Each step is a table swap, so every `[Localized]` field and localized component refreshes itself,
+and a step that fails leaves the previous one standing. An empty answer is treated as a failure
+rather than applied — an empty document is nearly always a permissions page, and applying it would
+blank the game.
+
+Manually, it is one call:
+
+```csharp
+LocalizationRemote.FetchAndApply(provider, result =>
+{
+    if (!result.Success) Debug.Log($"Still on the shipped strings: {result.Error}");
+});
+```
+
+### Writing one
+
+```csharp
+[CreateAssetMenu(menuName = "MyGame/Localization/CDN")]
+public sealed class CdnProvider : LocalizationProviderAsset
+{
+    [SerializeField] private string m_Url;
+
+    public override LocalizationProviderCapabilities Capabilities =>
+        string.IsNullOrEmpty(m_Url)
+            ? LocalizationProviderCapabilities.None
+            : LocalizationProviderCapabilities.Fetch;
+
+    public override void Fetch(Action<LocalizationFetchResult> onCompleted)
+    {
+        LocalizationWeb.Get(m_Url, response =>
+        {
+            if (!response.Success)
+            {
+                onCompleted(LocalizationFetchResult.Failed(response.Error));
+                return;
+            }
+
+            onCompleted(LocalizationSnapshot.TryFromCsv(response.Text, out var snapshot, out var error)
+                ? LocalizationFetchResult.Ok(snapshot)
+                : LocalizationFetchResult.Failed(error));
+        });
+    }
+}
+```
+
+`onCompleted` must run exactly once, including on failure and including when the provider gives up
+before doing any work — otherwise every caller ends up writing a timeout.
+
+**Keep write credentials out of players.** An asset a build references ships inside that build, and
+a token in a build is a token you have published. A provider that uploads should report no upload
+capability outside the editor, as the Sheets sample does, or read its credential from somewhere that
+is not the asset.
+
+`ILocalizationSource` is still there for something simpler; `LocalCatalogSource` is the shipped one,
+and `LocalizationProviderSource` presents any provider as one.
 
 ## Objects the kit ships no component for
 

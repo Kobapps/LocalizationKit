@@ -149,34 +149,105 @@ localized.FontOverrides = new[]
 
 Languages not listed keep the authored font.
 
-## Remote catalog (Google Sheets)
+## Remote catalog (a provider)
 
-Publish the sheet: **File ▸ Share ▸ Publish to web ▸ Comma-separated values**. Then:
+Do **not** hand-roll a `UnityWebRequest` and call `SetTable` yourself. Implement a provider —
+you get merging, previewing, caching, the editor page, the build step and the runtime
+refresh for free, and they all behave consistently.
 
 ```csharp
-using UnityEngine.Networking;
-
-private IEnumerator LoadRemote(string url)
+[CreateAssetMenu(menuName = "MyGame/Localization/CDN")]
+public sealed class CdnProvider : LocalizationProviderAsset
 {
-    using var request = UnityWebRequest.Get(url);
-    yield return request.SendWebRequest();
+    [SerializeField] private string m_Url;
 
-    if (request.result != UnityWebRequest.Result.Success)
-        yield break;                                   // keep the local table
+    public override LocalizationProviderCapabilities Capabilities =>
+        string.IsNullOrEmpty(m_Url)
+            ? LocalizationProviderCapabilities.None      // report honestly; the UI reads this
+            : LocalizationProviderCapabilities.Fetch;
 
-    var table = LocalizationTableBuilder.FromCsv(request.downloadHandler.text, defaultLanguage: "en");
-    if (table.KeyCount == 0) yield break;              // never install an empty table
+    public override void Fetch(Action<LocalizationFetchResult> onCompleted)
+    {
+        // LocalizationWeb, not UnityWebRequest: it works in the editor outside play mode and
+        // under -batchmode, where nothing pumps an async request.
+        LocalizationWeb.Get(m_Url, response =>
+        {
+            if (!response.Success)
+            {
+                onCompleted(LocalizationFetchResult.Failed(response.Error));
+                return;
+            }
 
-    Localization.SetTable(table, L.Language);          // keep the player's language
+            onCompleted(LocalizationSnapshot.TryFromCsv(response.Text, out var snapshot, out var error)
+                ? LocalizationFetchResult.Ok(snapshot)
+                : LocalizationFetchResult.Failed(error));
+        });
+    }
 }
 ```
 
-Every `[Localized]` field and every localized component refreshes itself. Handles held
-anywhere re-resolve on their next read. **No calling code changes.**
+`onCompleted` must run **exactly once**, on every path, including early returns.
 
-Two rules: keep the local catalog as the shipped fallback so a failed fetch degrades to
-working text rather than to keys, and validate before installing — an empty or truncated
-download that becomes the live table turns the whole UI into key names.
+Assign it in **Project Settings ▸ LocalizationKit** (or the Remote page), then either turn on
+*Fetch at runtime on startup* or call it yourself:
+
+```csharp
+LocalizationRemote.FetchAndApply(provider, result =>
+{
+    if (!result.Success) Debug.Log($"Still on the shipped strings: {result.Error}");
+});
+```
+
+Every `[Localized]` field and localized component refreshes itself. Handles held anywhere
+re-resolve on their next read. **No calling code changes.**
+
+`LocalizationRemote` already refuses to install an empty answer and already leaves the active
+table alone on failure, so the two rules that used to need writing by hand — keep the local
+catalog as the shipped fallback, never install an empty table — are enforced for you.
+
+For the Google Sheets case specifically, import the **Google Sheets Provider** sample rather
+than writing one: reading needs no credential, and writing needs the Apps Script endpoint the
+sample includes.
+
+## Pulling the sheet into the catalog on a build machine
+
+The catalog asset is what ships inside the player, so a runtime fetch does not save a CI build
+made from a stale checkout. Pull first:
+
+```bash
+Unity -batchmode -quit -projectPath .   -executeMethod LocalizationKit.Editor.LocalizationRemoteSync.SyncFromRemote
+```
+
+Exits non-zero on failure. Or turn on *Sync remote before build*, which does the same as part
+of every build and fails the build if it cannot.
+
+In editor code, the blocking form:
+
+```csharp
+if (!LocalizationRemoteSync.Pull(out var report, out var error))
+    throw new BuildFailedException(error);
+
+Debug.Log(report.ShortSummary());
+```
+
+## Merging a snapshot yourself
+
+```csharp
+// What would this do? Preview runs the real merge against a throwaway copy.
+var preview = LocalizationMerge.Preview(catalog, snapshot, LocalizationMergeOptions.Default);
+if (preview.RemovedKeys > 0) AskFirst();
+
+// Take a translation pass back without losing edits made since:
+LocalizationMerge.Into(catalog, snapshot, LocalizationMergeOptions.FillBlanks);
+```
+
+`Into` mutates the catalog and nothing else — record undo and save the asset yourself:
+
+```csharp
+LocalizationEditorCatalog.RecordUndo(catalog, "Merge Localization");
+var report = LocalizationMerge.Into(catalog, snapshot, options);
+LocalizationEditorCatalog.Save(catalog);
+```
 
 ## Reading in a hot path
 

@@ -1,0 +1,256 @@
+/**
+ * LocalizationKit — Google Sheets read/write endpoint.
+ *
+ * Paste this into Extensions ▸ Apps Script on the spreadsheet, change SECRET, then
+ * Deploy ▸ New deployment ▸ Web app, with:
+ *
+ *   Execute as:      Me
+ *   Who has access:  Anyone
+ *
+ * "Anyone" sounds alarming and is why SECRET exists: the URL is unguessable, and every request
+ * has to carry the secret as well. Google offers no other way to reach a script without an OAuth
+ * flow, which is not something a build machine can complete.
+ *
+ * Copy the deployment URL into the provider asset's "Web app URL", and the same SECRET into its
+ * "Shared secret" field.
+ *
+ * Redeploy (Manage deployments ▸ edit ▸ New version) after any change to this file — Apps Script
+ * serves the deployed version, not the saved one, and forgetting this is the single most common
+ * "my change did nothing".
+ *
+ *   GET  ?token=…                       → every tab, as one CSV of full keys
+ *   GET  ?token=…&sheet=Popups          → just that tab, keys still fully qualified
+ *   POST token=…&csv=…&split=1          → replaces every tab, one per top-level category
+ *   POST token=…&csv=…&split=0&sheet=X  → replaces the single tab X verbatim
+ *
+ * The wire format is always one flat CSV whose first column holds full keys
+ * (Popups/Settings/Title). The split into tabs happens here, so Unity never has to know how the
+ * workbook is arranged — and a publish is one atomic-ish write rather than eight that can each
+ * fail on their own.
+ */
+
+const SECRET = 'change-me';
+const DEFAULT_SHEET = 'Localization';
+
+/** A tab whose name starts with this is notes, not translations. */
+const IGNORED_PREFIX = '_';
+
+function doGet(e) {
+  try {
+    guard(e);
+
+    const only = e && e.parameter ? e.parameter.sheet : null;
+    const book = SpreadsheetApp.getActiveSpreadsheet();
+
+    const sheets = only
+      ? [book.getSheetByName(only)].filter(function (s) { return s; })
+      : book.getSheets().filter(function (s) { return !isIgnored(s.getName()); });
+
+    if (!sheets.length) throw new Error('No readable tabs.');
+
+    return text(toCsv(readAll(sheets)));
+  } catch (error) {
+    return text('ERROR ' + error.message);
+  }
+}
+
+function doPost(e) {
+  try {
+    guard(e);
+
+    const csv = (e.parameter && e.parameter.csv) || '';
+    if (!csv) throw new Error('No csv parameter.');
+
+    const rows = Utilities.parseCsv(csv);
+    if (rows.length < 2) throw new Error('The csv parameter carried no data rows.');
+
+    const split = !e.parameter || e.parameter.split !== '0';
+    const written = split
+      ? writeSplit(rows)
+      : writeFlat(rows, (e.parameter && e.parameter.sheet) || DEFAULT_SHEET);
+
+    SpreadsheetApp.flush();
+
+    return text('OK ' + written);
+  } catch (error) {
+    return text('ERROR ' + error.message);
+  }
+}
+
+// ---------------------------------------------------------------- reading
+
+/**
+ * Reads every given tab into one grid of full keys, unioning the language columns.
+ *
+ * Tabs are allowed to disagree about which languages they carry — a translator adding a column to
+ * one tab should not break the others — so the header is the union, and a tab missing a language
+ * simply contributes blanks for it.
+ */
+function readAll(sheets) {
+  const languages = [];
+  const out = [];
+
+  sheets.forEach(function (sheet) {
+    const values = sheet.getDataRange().getValues();
+    if (values.length < 2) return;
+
+    const header = values[0];
+    const category = sheet.getName();
+
+    // Column index in this tab -> column index in the combined output.
+    const map = [];
+    for (var c = 1; c < header.length; c++) {
+      const code = String(header[c] || '').trim();
+      if (!code) continue;
+
+      var at = languages.indexOf(code);
+      if (at < 0) { languages.push(code); at = languages.length - 1; }
+
+      map[c] = at;
+    }
+
+    for (var r = 1; r < values.length; r++) {
+      const key = String(values[r][0] || '').trim();
+      if (!key) continue;
+
+      const row = [qualify(category, key)];
+      for (var c2 = 1; c2 < header.length; c2++) {
+        if (map[c2] === undefined) continue;
+        row[map[c2] + 1] = values[r][c2];
+      }
+
+      out.push(row);
+    }
+  });
+
+  const width = languages.length + 1;
+  const grid = [['Key'].concat(languages)];
+
+  out.forEach(function (row) {
+    const padded = [];
+    for (var i = 0; i < width; i++) padded.push(row[i] === undefined ? '' : row[i]);
+    grid.push(padded);
+  });
+
+  return grid;
+}
+
+/** Prefixes a key with its tab, unless it already carries it. */
+function qualify(category, key) {
+  if (key === category) return key;
+  if (key.indexOf(category + '/') === 0) return key;
+
+  return category + '/' + key;
+}
+
+// ---------------------------------------------------------------- writing
+
+/** Replaces every category tab from a flat grid of full keys. Returns the row count written. */
+function writeSplit(rows) {
+  const header = rows[0];
+  const groups = {};
+  const order = [];
+
+  for (var r = 1; r < rows.length; r++) {
+    const key = String(rows[r][0] || '').trim();
+    if (!key) continue;
+
+    const slash = key.indexOf('/');
+    const category = slash > 0 ? key.substring(0, slash) : 'Default';
+    const relative = slash > 0 ? key.substring(slash + 1) : key;
+
+    if (!groups[category]) { groups[category] = []; order.push(category); }
+
+    groups[category].push([relative].concat(rows[r].slice(1)));
+  }
+
+  var written = 0;
+
+  order.forEach(function (category) {
+    const body = groups[category];
+    const grid = [header.slice()].concat(body);
+
+    grid[0][0] = 'Key';
+
+    writeGrid(sheetFor(category), grid);
+    written += body.length;
+  });
+
+  // A category that lost its last key leaves a tab behind full of text that no longer exists
+  // anywhere; the next read would resurrect every row of it. Clear those rather than delete the
+  // tab, so a translator's column formatting and notes survive a category going briefly empty.
+  SpreadsheetApp.getActiveSpreadsheet().getSheets().forEach(function (sheet) {
+    const name = sheet.getName();
+    if (isIgnored(name) || groups[name]) return;
+
+    sheet.clear();
+    sheet.getRange(1, 1, 1, header.length).setValues([header]);
+  });
+
+  return written;
+}
+
+/** Replaces one tab with the grid exactly as given. */
+function writeFlat(rows, name) {
+  writeGrid(sheetFor(name), rows);
+  return rows.length - 1;
+}
+
+function writeGrid(sheet, grid) {
+  const width = grid.reduce(function (widest, row) {
+    return Math.max(widest, row.length);
+  }, 0);
+
+  // Every row must be the same length or setValues throws, and a short trailing row is normal in
+  // hand-edited CSV.
+  const padded = grid.map(function (row) {
+    const copy = row.slice();
+    while (copy.length < width) copy.push('');
+    return copy;
+  });
+
+  // Clear first: without it, a shrinking category leaves the rows it no longer has behind, and the
+  // next fetch reads keys that were deleted a release ago.
+  sheet.clear();
+  sheet.getRange(1, 1, padded.length, width).setValues(padded);
+  sheet.setFrozenRows(1);
+}
+
+// ---------------------------------------------------------------- plumbing
+
+function guard(e) {
+  const token = (e && e.parameter && e.parameter.token) || '';
+
+  if (SECRET === 'change-me') throw new Error('Set SECRET in the Apps Script first.');
+  if (token !== SECRET) throw new Error('Bad or missing token.');
+}
+
+function isIgnored(name) {
+  return !name || name.charAt(0) === IGNORED_PREFIX;
+}
+
+function sheetFor(name) {
+  const book = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = book.getSheetByName(name);
+
+  // A first publish should not fail because a category has no tab yet.
+  return sheet ? sheet : book.insertSheet(name);
+}
+
+function toCsv(rows) {
+  return rows
+    .map(function (row) {
+      return row
+        .map(function (cell) {
+          const value = cell === null || cell === undefined ? '' : String(cell);
+
+          return /[",\n\r]/.test(value) ? '"' + value.replace(/"/g, '""') + '"' : value;
+        })
+        .join(',');
+    })
+    .join('\n');
+}
+
+function text(body) {
+  return ContentService.createTextOutput(body).setMimeType(ContentService.MimeType.TEXT);
+}

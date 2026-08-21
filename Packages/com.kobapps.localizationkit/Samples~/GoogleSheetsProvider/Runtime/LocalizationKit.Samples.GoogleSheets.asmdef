@@ -1,0 +1,16 @@
+{
+    "name": "LocalizationKit.Samples.GoogleSheets",
+    "rootNamespace": "LocalizationKit.Samples",
+    "references": [
+        "LocalizationKit.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

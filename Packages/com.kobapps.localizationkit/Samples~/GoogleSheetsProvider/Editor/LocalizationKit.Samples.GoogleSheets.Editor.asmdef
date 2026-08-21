@@ -1,0 +1,21 @@
+{
+    "name": "LocalizationKit.Samples.GoogleSheets.Editor",
+    "rootNamespace": "LocalizationKit.Samples.Editor",
+    "references": [
+        "LocalizationKit.Runtime",
+        "LocalizationKit.Editor",
+        "LocalizationKit.Samples.GoogleSheets",
+        "EditorCoreKit.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

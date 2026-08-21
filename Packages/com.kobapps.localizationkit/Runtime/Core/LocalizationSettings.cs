@@ -30,6 +30,11 @@ namespace LocalizationKit
         [SerializeField] private bool m_LogMissingKeys = true;
         [SerializeField, LocalizationKey] private string m_AppNameKey;
         [SerializeField] private bool m_DeclareLanguagesToOS = true;
+        [SerializeField] private LocalizationProviderAsset m_RemoteProvider;
+        [SerializeField] private bool m_FetchRemoteOnStartup;
+        [SerializeField] private bool m_UseRemoteCache = true;
+        [SerializeField] private bool m_SyncRemoteBeforeBuild;
+        [SerializeField] private LocalizationMergeOptions m_RemoteMergeOptions = LocalizationMergeOptions.Default;
 
         /// <summary>The catalog the runtime builds its table from.</summary>
         public LocalizationCatalog Catalog
@@ -114,6 +119,80 @@ namespace LocalizationKit
         {
             get => m_DeclareLanguagesToOS;
             set => m_DeclareLanguagesToOS = value;
+        }
+
+        /// <summary>
+        /// Where translations come from when they do not come from the catalog asset — a
+        /// spreadsheet, a CDN, a translation service. Null for a project that ships its strings.
+        /// </summary>
+        /// <remarks>
+        /// A provider referenced here ships in the build, which is what makes a runtime refresh
+        /// possible and also what makes write credentials in one a bad idea. See
+        /// <see cref="LocalizationProviderAsset"/>.
+        /// </remarks>
+        public LocalizationProviderAsset RemoteProvider
+        {
+            get => m_RemoteProvider;
+            set => m_RemoteProvider = value;
+        }
+
+        /// <summary>
+        /// Whether the kit asks <see cref="RemoteProvider"/> for fresh strings as it starts.
+        /// </summary>
+        /// <remarks>
+        /// The fetch does not block startup. The catalog — or the cached copy of the last fetch —
+        /// is installed first and the game runs on it; the remote's answer replaces it whenever it
+        /// arrives, and every bound field and component refreshes on its own. A fetch that fails
+        /// leaves what was already there.
+        /// </remarks>
+        public bool FetchRemoteOnStartup
+        {
+            get => m_FetchRemoteOnStartup;
+            set => m_FetchRemoteOnStartup = value;
+        }
+
+        /// <summary>
+        /// Whether a successful fetch is written to disk and used on the next launch before the
+        /// network answers.
+        /// </summary>
+        /// <remarks>
+        /// Worth leaving on. Without it, every cold start that begins offline begins in whatever
+        /// the build shipped with, however long ago that was.
+        /// </remarks>
+        public bool UseRemoteCache
+        {
+            get => m_UseRemoteCache;
+            set => m_UseRemoteCache = value;
+        }
+
+        /// <summary>
+        /// Whether a build fetches the remote into the catalog before it starts.
+        /// </summary>
+        /// <remarks>
+        /// This is what makes a build machine produce current strings. The catalog asset is what
+        /// ships inside the player, so a build made on CI from a checkout that is a week old ships
+        /// week-old text unless something pulls first — and a runtime fetch does not help the first
+        /// frame, or a player who is offline. The build stops if the fetch fails, on the grounds
+        /// that shipping stale text silently is the thing this setting exists to prevent.
+        /// </remarks>
+        public bool SyncRemoteBeforeBuild
+        {
+            get => m_SyncRemoteBeforeBuild;
+            set => m_SyncRemoteBeforeBuild = value;
+        }
+
+        /// <summary>
+        /// What a fetch is allowed to do to the catalog when it is merged in.
+        /// </summary>
+        /// <remarks>
+        /// Kept here, in a version-controlled asset, rather than in the editor window, so that a
+        /// sync run on a build machine applies the same policy as one run by a person. A merge
+        /// policy that differs per machine is a merge policy nobody can reason about.
+        /// </remarks>
+        public LocalizationMergeOptions RemoteMergeOptions
+        {
+            get => m_RemoteMergeOptions;
+            set => m_RemoteMergeOptions = value;
         }
 
         /// <summary>Loads the settings asset from <c>Resources</c>, or null when there is none.</summary>

@@ -103,6 +103,31 @@ namespace LocalizationKit
         }
 
         /// <summary>
+        /// Files a key under a category, unless it is already filed there.
+        /// </summary>
+        /// <remarks>
+        /// This is what a source that carries its category out of band needs — a spreadsheet with a
+        /// tab per category, a folder of per-category files, an endpoint returning one category at
+        /// a time. Inside the <c>Popups</c> tab, <c>Settings/Title</c> means
+        /// <c>Popups/Settings/Title</c>.
+        /// <para>
+        /// A key that already names its category is returned untouched, and that is the whole
+        /// reason this is a named operation rather than a string concatenation at each call site.
+        /// Somebody will eventually write the full <c>Popups/Title</c> inside the Popups tab
+        /// instead of the bare <c>Title</c>; blindly prefixing turns that into
+        /// <c>Popups/Popups/Title</c>, a key that exists nowhere, resolves to itself, and shows up
+        /// on screen as its own name.
+        /// </para>
+        /// </remarks>
+        public static string Qualify(string category, string key)
+        {
+            if (string.IsNullOrEmpty(key)) return string.Empty;
+            if (string.IsNullOrEmpty(category)) return key;
+
+            return IsUnder(CategoryOf(key), category) ? key : Compose(category, key);
+        }
+
+        /// <summary>
         /// True when <paramref name="category"/> is <paramref name="root"/> or sits underneath it,
         /// which is what selecting a group in a category tree has to mean.
         /// </summary>
